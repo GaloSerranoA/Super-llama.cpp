@@ -22,12 +22,17 @@ add_library(llama
             llama-io.cpp
             llama-kv-cache.cpp
             llama-kv-cache-iswa.cpp
+            llama-kv-cache-paged.cpp
+            llama-layer-sched.cpp
+            llama-mem-telemetry.cpp
+            llama-metrics.cpp
             llama-memory.cpp
             llama-memory-hybrid.cpp
             llama-memory-hybrid-iswa.cpp
             llama-memory-recurrent.cpp
             llama-mmap.cpp
             llama-model-loader.cpp
+            llama-prefetch.cpp
             llama-model-saver.cpp
             llama-model.cpp
             llama-quant.cpp

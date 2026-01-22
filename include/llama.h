@@ -347,6 +347,10 @@ extern "C" {
         uint32_t yarn_orig_ctx;    // YaRN original context size
         float    defrag_thold;     // [DEPRECATED] defragment the KV cache if holes/size > thold, <= 0 disabled (default)
 
+        // [EXPERIMENTAL] AirLLM-style memory efficiency parameters
+        float    mem_pressure_thresh; // memory pressure threshold for dynamic layers (0.0-1.0, default: 0.85)
+        uint32_t kv_page_size;        // KV cache page size in tokens for paged KV (default: 256)
+
         ggml_backend_sched_eval_callback cb_eval;
         void * cb_eval_user_data;
 
@@ -370,6 +374,13 @@ extern "C" {
         bool kv_unified;  // use a unified buffer across the input sequences when computing the attention
                           // try to disable when n_seq_max > 1 for improved performance when the sequences do not share a large prefix
                           // ref: https://github.com/ggml-org/llama.cpp/pull/14363
+
+        // [EXPERIMENTAL] AirLLM-style memory efficiency features
+        bool dynamic_layers;  // enable dynamic layer scheduling based on memory pressure
+        bool paged_kv;        // enable paged KV cache with GPU/CPU spilling
+        bool async_prefetch;  // enable async layer/KV prefetching
+        bool metrics_logging; // enable structured JSON metrics logging
+        const char * metrics_file; // metrics output file path (null = stderr)
 
         // [EXPERIMENTAL]
         // backend sampler chain configuration (make sure the caller keeps the sampler chains alive)

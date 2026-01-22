@@ -4,9 +4,13 @@
 #include "llama-impl.h"
 #include "llama-batch.h"
 #include "llama-io.h"
+#include "llama-layer-sched.h"
+#include "llama-mem-telemetry.h"
 #include "llama-memory.h"
+#include "llama-metrics.h"
 #include "llama-mmap.h"
 #include "llama-model.h"
+#include "llama-prefetch.h"
 
 #include <cinttypes>
 #include <cmath>
@@ -156,6 +160,15 @@ llama_context::llama_context(
     cparams.op_offload = params.op_offload;
     cparams.kv_unified = params.kv_unified;
 
+    // AirLLM-style memory efficiency features
+    cparams.dynamic_layers     = params.dynamic_layers;
+    cparams.paged_kv           = params.paged_kv;
+    cparams.async_prefetch     = params.async_prefetch;
+    cparams.metrics_logging    = params.metrics_logging;
+    cparams.mem_pressure_thresh = params.mem_pressure_thresh;
+    cparams.kv_page_size       = params.kv_page_size;
+    cparams.metrics_file       = params.metrics_file ? params.metrics_file : "";
+
     // intialized later
     cparams.pipeline_parallel = false;
 
@@ -276,6 +289,71 @@ llama_context::llama_context(
         };
 
         memory.reset(model.create_memory(params_mem, cparams));
+    }
+
+    // init AirLLM-style memory efficiency subsystems (experimental)
+    if (cparams.dynamic_layers || cparams.paged_kv || cparams.async_prefetch) {
+        // Initialize memory telemetry (always needed if any feature is enabled)
+        llama_mem_telemetry::config telemetry_cfg;
+        telemetry_cfg.pressure_threshold = cparams.mem_pressure_thresh;
+        telemetry_cfg.critical_threshold = std::min(0.95f, cparams.mem_pressure_thresh + 0.10f);
+        mem_telemetry = std::make_unique<llama_mem_telemetry>(telemetry_cfg);
+
+        LLAMA_LOG_INFO("%s: memory telemetry initialized (pressure_thresh=%.2f)\n",
+            __func__, cparams.mem_pressure_thresh);
+
+        // Initialize dynamic layer scheduler
+        if (cparams.dynamic_layers) {
+            llama_layer_scheduler::config sched_cfg;
+            sched_cfg.pressure_threshold = cparams.mem_pressure_thresh;
+            sched_cfg.critical_threshold = telemetry_cfg.critical_threshold;
+            sched_cfg.prefetch_enabled = cparams.async_prefetch;
+
+            layer_sched = std::make_unique<llama_layer_scheduler>(
+                const_cast<llama_model &>(model), *mem_telemetry, sched_cfg);
+
+            LLAMA_LOG_INFO("%s: dynamic layer scheduler enabled\n", __func__);
+        }
+
+        // Initialize async prefetcher
+        if (cparams.async_prefetch) {
+            llama_prefetcher::config prefetch_cfg;
+            prefetch_cfg.n_workers = 1;
+            prefetch_cfg.auto_prefetch = true;
+            prefetch_cfg.lookahead_layers = 2;
+            prefetch_cfg.lookahead_pages = 4;
+
+            // Note: kv_cache_paged is null here since paged KV is not yet fully integrated
+            prefetcher = std::make_unique<llama_prefetcher>(
+                layer_sched.get(), nullptr, prefetch_cfg);
+
+            LLAMA_LOG_INFO("%s: async prefetcher enabled\n", __func__);
+        }
+
+        // Note: paged KV cache selection will be handled in model.create_memory()
+
+        // Initialize metrics logger if metrics logging is enabled
+        if (cparams.metrics_logging) {
+            llama_metrics_logger::config metrics_cfg;
+            metrics_cfg.enabled = true;
+            metrics_cfg.output_file = cparams.metrics_file;
+            metrics_cfg.log_interval_ms = 1000;  // Log every second by default
+            metrics_cfg.log_on_eviction = true;
+            metrics_cfg.pretty_print = false;    // Compact JSON for easier parsing
+
+            metrics_logger = std::make_unique<llama_metrics_logger>(metrics_cfg);
+
+            // Connect metrics logger to subsystems
+            if (layer_sched) {
+                layer_sched->set_metrics_logger(metrics_logger.get());
+            }
+
+            // Set as global logger for convenience
+            llama_set_metrics_logger(metrics_logger.get());
+
+            LLAMA_LOG_INFO("%s: metrics logging enabled%s\n", __func__,
+                cparams.metrics_file.empty() ? " (stderr)" : (" to " + cparams.metrics_file).c_str());
+        }
     }
 
     // init backends
@@ -3001,6 +3079,8 @@ llama_context_params llama_context_default_params() {
         /*.yarn_beta_slow              =*/ -1.0f,
         /*.yarn_orig_ctx               =*/ 0,
         /*.defrag_thold                =*/ -1.0f,
+        /*.mem_pressure_thresh         =*/ 0.85f,
+        /*.kv_page_size                =*/ 256,
         /*.cb_eval                     =*/ nullptr,
         /*.cb_eval_user_data           =*/ nullptr,
         /*.type_k                      =*/ GGML_TYPE_F16,
@@ -3013,6 +3093,11 @@ llama_context_params llama_context_default_params() {
         /*.op_offload                  =*/ true,
         /*.swa_full                    =*/ true,
         /*.kv_unified                  =*/ false,
+        /*.dynamic_layers              =*/ false,
+        /*.paged_kv                    =*/ false,
+        /*.async_prefetch              =*/ false,
+        /*.metrics_logging             =*/ false,
+        /*.metrics_file                =*/ nullptr,
         /*.sampler                     =*/ nullptr,
         /*.n_sampler                   =*/ 0,
     };

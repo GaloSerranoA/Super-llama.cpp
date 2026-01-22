@@ -3,6 +3,7 @@
 #include "llama.h"
 
 #include <cstdint>
+#include <string>
 
 #define LLAMA_MAX_SEQ 256
 
@@ -36,6 +37,15 @@ struct llama_cparams {
     bool op_offload;
     bool kv_unified;
     bool pipeline_parallel;
+
+    // AirLLM-style memory efficiency features (experimental)
+    bool dynamic_layers;
+    bool paged_kv;
+    bool async_prefetch;
+    bool metrics_logging;
+    float mem_pressure_thresh;
+    uint32_t kv_page_size;
+    std::string metrics_file;
 
     enum llama_pooling_type pooling_type;
 

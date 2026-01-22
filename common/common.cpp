@@ -1421,6 +1421,15 @@ struct llama_context_params common_context_params_to_llama(const common_params &
     cparams.swa_full          = params.swa_full;
     cparams.kv_unified        = params.kv_unified;
 
+    // AirLLM-style memory efficiency features
+    cparams.dynamic_layers     = params.dynamic_layers;
+    cparams.paged_kv           = params.paged_kv;
+    cparams.async_prefetch     = params.async_prefetch;
+    cparams.metrics_logging    = params.metrics_logging;
+    cparams.mem_pressure_thresh = params.mem_pressure_thresh;
+    cparams.kv_page_size       = params.kv_page_size;
+    cparams.metrics_file       = params.metrics_file.empty() ? nullptr : params.metrics_file.c_str();
+
     cparams.type_k = params.cache_type_k;
     cparams.type_v = params.cache_type_v;
 

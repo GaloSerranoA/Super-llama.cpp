@@ -436,6 +436,15 @@ struct common_params {
     bool swa_full          = false; // use full-size SWA cache (https://github.com/ggml-org/llama.cpp/pull/13194#issuecomment-2868343055)
     bool kv_unified        = false; // enable unified KV cache
 
+    // AirLLM-style memory efficiency features (experimental)
+    bool        dynamic_layers     = false; // enable dynamic layer scheduling
+    bool        paged_kv           = false; // enable paged KV cache
+    bool        async_prefetch     = false; // enable async layer/KV prefetching
+    bool        metrics_logging    = false; // enable structured JSON metrics logging
+    float       mem_pressure_thresh = 0.85f; // memory pressure threshold for dynamic layers
+    uint32_t    kv_page_size       = 256;   // KV cache page size in tokens
+    std::string metrics_file;               // metrics output file path (empty = stderr)
+
     bool input_prefix_bos  = false; // prefix BOS to user inputs, preceding input_prefix
     bool use_mmap          = true;  // enable mmap to use filesystem cache
     bool use_direct_io     = true;  // read from disk without buffering for faster model loading

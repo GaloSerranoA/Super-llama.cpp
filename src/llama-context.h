@@ -13,6 +13,10 @@
 
 struct llama_model;
 class llama_batch_allocr;
+class llama_mem_telemetry;
+class llama_layer_scheduler;
+class llama_prefetcher;
+class llama_metrics_logger;
 
 class llama_io_read_i;
 class llama_io_write_i;
@@ -267,6 +271,12 @@ private:
     llama_cross cross; // TODO: tmp for handling cross-attention - need something better probably
 
     std::unique_ptr<llama_memory_i> memory;
+
+    // AirLLM-style memory efficiency subsystems (experimental)
+    std::unique_ptr<llama_mem_telemetry>   mem_telemetry;
+    std::unique_ptr<llama_layer_scheduler> layer_sched;
+    std::unique_ptr<llama_prefetcher>      prefetcher;
+    std::unique_ptr<llama_metrics_logger>  metrics_logger;
 
     // decode output (2-dimensional array: [n_outputs][n_vocab])
     size_t  logits_size = 0; // capacity (of floats) for logits

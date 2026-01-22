@@ -1296,6 +1296,63 @@ common_params_context common_params_parser_init(common_params & params, llama_ex
             params.kv_unified = true;
         }
     ).set_env("LLAMA_ARG_KV_UNIFIED").set_examples({LLAMA_EXAMPLE_SERVER, LLAMA_EXAMPLE_PERPLEXITY, LLAMA_EXAMPLE_BATCHED}));
+    // AirLLM-style memory efficiency features (experimental)
+    add_opt(common_arg(
+        {"--dynamic-layers"},
+        "enable dynamic layer scheduling based on memory pressure (experimental)",
+        [](common_params & params) {
+            params.dynamic_layers = true;
+        }
+    ).set_env("LLAMA_ARG_DYNAMIC_LAYERS"));
+    add_opt(common_arg(
+        {"--paged-kv"},
+        "enable paged KV cache with GPU/CPU spilling (experimental)",
+        [](common_params & params) {
+            params.paged_kv = true;
+        }
+    ).set_env("LLAMA_ARG_PAGED_KV"));
+    add_opt(common_arg(
+        {"--async-prefetch"},
+        "enable async layer/KV prefetching (experimental)",
+        [](common_params & params) {
+            params.async_prefetch = true;
+        }
+    ).set_env("LLAMA_ARG_ASYNC_PREFETCH"));
+    add_opt(common_arg(
+        {"--mem-pressure"}, "FLOAT",
+        string_format("memory pressure threshold for dynamic layers (0.0-1.0, default: %.2f)", params.mem_pressure_thresh),
+        [](common_params & params, const std::string & value) {
+            params.mem_pressure_thresh = std::stof(value);
+            if (params.mem_pressure_thresh < 0.0f || params.mem_pressure_thresh > 1.0f) {
+                throw std::runtime_error("error: --mem-pressure must be between 0.0 and 1.0");
+            }
+        }
+    ).set_env("LLAMA_ARG_MEM_PRESSURE"));
+    add_opt(common_arg(
+        {"--kv-page-size"}, "N",
+        string_format("KV cache page size in tokens for paged KV (default: %u)", params.kv_page_size),
+        [](common_params & params, int value) {
+            if (value < 16 || value > 8192) {
+                throw std::runtime_error("error: --kv-page-size must be between 16 and 8192");
+            }
+            params.kv_page_size = static_cast<uint32_t>(value);
+        }
+    ).set_env("LLAMA_ARG_KV_PAGE_SIZE"));
+    add_opt(common_arg(
+        {"--metrics"},
+        "enable structured JSON metrics logging to stderr (experimental)",
+        [](common_params & params) {
+            params.metrics_logging = true;
+        }
+    ).set_env("LLAMA_ARG_METRICS"));
+    add_opt(common_arg(
+        {"--metrics-file"}, "FILE",
+        "write metrics to FILE instead of stderr (experimental)",
+        [](common_params & params, const std::string & value) {
+            params.metrics_logging = true;
+            params.metrics_file = value;
+        }
+    ).set_env("LLAMA_ARG_METRICS_FILE"));
     add_opt(common_arg(
         {"--context-shift"},
         {"--no-context-shift"},
