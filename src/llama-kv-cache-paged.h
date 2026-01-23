@@ -5,6 +5,7 @@
 #include "llama-metrics.h"
 
 #include <deque>
+#include <map>
 #include <memory>
 #include <mutex>
 #include <unordered_map>
@@ -29,6 +30,9 @@ struct llama_kv_page {
     int64_t                  last_access_us = 0;     // Last access timestamp
     bool                     dirty         = false;  // Page has been modified
     size_t                   size_bytes    = 0;      // Total size of K+V data
+
+    // Buffer for migrated page data (owned by page when migrated)
+    ggml_backend_buffer_t    buffer        = nullptr;
 };
 
 // Paged KV cache that supports GPU/CPU spilling for memory efficiency
@@ -36,11 +40,14 @@ struct llama_kv_page {
 class llama_kv_cache_paged : public llama_memory_i {
 public:
     struct config {
-        uint32_t page_size         = 256;   // Tokens per page
-        float    pressure_thresh   = 0.85f; // GPU memory pressure threshold
-        float    critical_thresh   = 0.95f; // Critical threshold for forced eviction
-        size_t   max_cpu_pages     = 0;     // Max pages in CPU (0 = unlimited)
-        bool     prefetch_enabled  = true;  // Enable page prefetching
+        uint32_t page_size            = 256;   // Tokens per page
+        float    pressure_thresh      = 0.85f; // GPU memory pressure threshold (start evicting)
+        float    pressure_low_thresh  = 0.70f; // Hysteresis low threshold (stop evicting)
+        float    critical_thresh      = 0.95f; // Critical threshold for forced eviction
+        size_t   max_cpu_pages        = 0;     // Max pages in CPU (0 = unlimited)
+        bool     prefetch_enabled     = true;  // Enable page prefetching
+        bool     coalesce_pages       = true;  // Enable page coalescing for adjacent pages
+        uint32_t coalesce_threshold   = 4;     // Minimum adjacent pages to trigger coalescing
     };
 
     llama_kv_cache_paged(
@@ -125,9 +132,34 @@ public:
     // Get eviction/prefetch statistics
     int64_t get_pages_evicted() const { return pages_evicted_; }
     int64_t get_pages_prefetched() const { return pages_prefetched_; }
+    int64_t get_pages_coalesced() const { return pages_coalesced_; }
+
+    // Coalesce adjacent pages on the same layer
+    // Returns number of pages coalesced
+    uint32_t coalesce_pages(int32_t il);
+
+    // Coalesce all layers
+    uint32_t coalesce_all_pages();
 
     // Set metrics logger for structured logging
     void set_metrics_logger(llama_metrics_logger * logger) { metrics_logger_ = logger; }
+
+    // Async prefetch support - queue pages for background prefetch
+    bool request_prefetch(uint32_t page_id);
+    bool request_prefetch_range(int32_t il, uint32_t pos_start, uint32_t pos_end);
+    size_t process_pending_prefetches(size_t max_count = 1);
+    size_t get_pending_prefetch_count() const;
+
+    // Synchronization helpers
+    void synchronize_page(uint32_t page_id);
+    void synchronize_all_pages();
+
+    // Check memory pressure and trigger evictions if needed
+    bool check_memory_pressure();
+
+    // Get page by ID
+    llama_kv_page * get_page(uint32_t page_id);
+    const llama_kv_page * get_page(uint32_t page_id) const;
 
 private:
     // Internal helpers
@@ -136,6 +168,10 @@ private:
     llama_kv_page * find_lru_gpu_page() const;
     bool ensure_gpu_memory(size_t required_bytes);
     static int64_t get_time_us();
+
+    // Internal page count helpers (no mutex - caller must hold lock)
+    uint32_t get_gpu_page_count_unlocked() const;
+    uint32_t get_cpu_page_count_unlocked() const;
 
     // Page key: (layer_id, page_number)
     using page_key_t = std::pair<int32_t, uint32_t>;
@@ -169,6 +205,13 @@ private:
     // Statistics
     int64_t pages_evicted_ = 0;
     int64_t pages_prefetched_ = 0;
+    int64_t pages_coalesced_ = 0;
+
+    // Hysteresis state
+    bool in_pressure_mode_ = false;
+
+    // Pending prefetch queue
+    std::deque<uint32_t> pending_prefetches_;
 
     // Metrics logger (optional)
     llama_metrics_logger * metrics_logger_ = nullptr;

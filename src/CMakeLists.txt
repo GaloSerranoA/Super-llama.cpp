@@ -33,6 +33,11 @@ add_library(llama
             llama-mmap.cpp
             llama-model-loader.cpp
             llama-prefetch.cpp
+            llama-multi-gpu.cpp
+            llama-stream-pipeline.cpp
+            llama-prometheus.cpp
+            llama-enterprise.cpp
+            llama-security.cpp
             llama-model-saver.cpp
             llama-model.cpp
             llama-quant.cpp

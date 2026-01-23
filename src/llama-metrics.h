@@ -45,6 +45,15 @@ struct llama_metrics_snapshot {
     // Memory pressure
     float gpu_memory_pressure = 0.0f;  // GPU memory utilization (0.0-1.0)
     float cpu_memory_pressure = 0.0f;  // CPU memory utilization (0.0-1.0)
+
+    // Migration metrics
+    double avg_migration_time_ms = 0.0;  // Average migration time
+    size_t total_bytes_migrated = 0;     // Total bytes migrated
+    double migration_bandwidth_mbps = 0.0; // Migration bandwidth MB/s
+
+    // Memory watermarks (high-water marks)
+    size_t gpu_memory_watermark = 0;     // Peak GPU memory usage
+    size_t cpu_memory_watermark = 0;     // Peak CPU memory usage
 };
 
 // Metrics logger for structured JSON output
@@ -70,6 +79,8 @@ public:
     void set_memory_usage(size_t vram_used, size_t vram_total, size_t ram_used, size_t ram_total);
     void set_memory_pressure(float gpu_pressure, float cpu_pressure);
     void set_prefetch_stats(int64_t pending, int64_t completed, int64_t failed);
+    void set_migration_stats(double avg_time_ms, size_t total_bytes, double bandwidth_mbps);
+    void set_memory_watermarks(size_t gpu_watermark, size_t cpu_watermark);
 
     // Increment counters (thread-safe)
     void inc_layers_evicted(int64_t count = 1);

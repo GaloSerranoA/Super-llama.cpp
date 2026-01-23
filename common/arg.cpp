@@ -1354,6 +1354,57 @@ common_params_context common_params_parser_init(common_params & params, llama_ex
         }
     ).set_env("LLAMA_ARG_METRICS_FILE"));
     add_opt(common_arg(
+        {"--mem-pressure-low"}, "FLOAT",
+        string_format("memory pressure low threshold for hysteresis (0.0-1.0, default: %.2f)", params.mem_pressure_low),
+        [](common_params & params, const std::string & value) {
+            params.mem_pressure_low = std::stof(value);
+            if (params.mem_pressure_low < 0.0f || params.mem_pressure_low > 1.0f) {
+                throw std::runtime_error("error: --mem-pressure-low must be between 0.0 and 1.0");
+            }
+        }
+    ).set_env("LLAMA_ARG_MEM_PRESSURE_LOW"));
+    add_opt(common_arg(
+        {"--pin-layers"}, "LAYERS",
+        "comma-separated list of layer indices to always keep on GPU (e.g., '0,1,31')",
+        [](common_params & params, const std::string & value) {
+            std::stringstream ss(value);
+            std::string item;
+            while (std::getline(ss, item, ',')) {
+                if (!item.empty()) {
+                    params.pinned_layers.push_back(std::stoi(item));
+                }
+            }
+        }
+    ).set_env("LLAMA_ARG_PIN_LAYERS"));
+    add_opt(common_arg(
+        {"--no-pinned-memory"},
+        "disable pinned memory for GPU transfers (may be slower)",
+        [](common_params & params) {
+            params.use_pinned_memory = false;
+        }
+    ).set_env("LLAMA_ARG_NO_PINNED_MEMORY"));
+    add_opt(common_arg(
+        {"--no-graceful-degrade"},
+        "fail instead of falling back to CPU when GPU migration fails",
+        [](common_params & params) {
+            params.graceful_degrade = false;
+        }
+    ).set_env("LLAMA_ARG_NO_GRACEFUL_DEGRADE"));
+    add_opt(common_arg(
+        {"--no-coalesce-pages"},
+        "disable KV page coalescing",
+        [](common_params & params) {
+            params.coalesce_kv_pages = false;
+        }
+    ).set_env("LLAMA_ARG_NO_COALESCE_PAGES"));
+    add_opt(common_arg(
+        {"--verbose-migration"},
+        "enable verbose logging for layer/page migration operations",
+        [](common_params & params) {
+            params.verbose_migration = true;
+        }
+    ).set_env("LLAMA_ARG_VERBOSE_MIGRATION"));
+    add_opt(common_arg(
         {"--context-shift"},
         {"--no-context-shift"},
         string_format("whether to use context shift on infinite text generation (default: %s)", params.ctx_shift ? "enabled" : "disabled"),

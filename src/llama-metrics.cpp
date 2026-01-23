@@ -6,14 +6,17 @@
 #include <iostream>
 #include <sstream>
 
-// Global metrics logger instance
+// Global metrics logger instance with thread-safe access
 static llama_metrics_logger * g_metrics_logger = nullptr;
+static std::mutex g_metrics_logger_mutex;
 
 llama_metrics_logger * llama_get_metrics_logger() {
+    std::lock_guard<std::mutex> lock(g_metrics_logger_mutex);
     return g_metrics_logger;
 }
 
 void llama_set_metrics_logger(llama_metrics_logger * logger) {
+    std::lock_guard<std::mutex> lock(g_metrics_logger_mutex);
     g_metrics_logger = logger;
 }
 
@@ -84,6 +87,19 @@ void llama_metrics_logger::set_prefetch_stats(int64_t pending, int64_t completed
     current_.prefetch_pending = pending;
     current_.prefetch_completed = completed;
     current_.prefetch_failed = failed;
+}
+
+void llama_metrics_logger::set_migration_stats(double avg_time_ms, size_t total_bytes, double bandwidth_mbps) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    current_.avg_migration_time_ms = avg_time_ms;
+    current_.total_bytes_migrated = total_bytes;
+    current_.migration_bandwidth_mbps = bandwidth_mbps;
+}
+
+void llama_metrics_logger::set_memory_watermarks(size_t gpu_watermark, size_t cpu_watermark) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    current_.gpu_memory_watermark = gpu_watermark;
+    current_.cpu_memory_watermark = cpu_watermark;
 }
 
 void llama_metrics_logger::inc_layers_evicted(int64_t count) {
@@ -301,7 +317,12 @@ std::string llama_metrics_logger::format_json(const llama_metrics_snapshot & s) 
         oss << "  \"avg_tokens_per_sec\": " << std::fixed << std::setprecision(2) << s.avg_tokens_per_sec << ",\n";
         oss << "  \"prefetch_pending\": " << s.prefetch_pending << ",\n";
         oss << "  \"prefetch_completed\": " << s.prefetch_completed << ",\n";
-        oss << "  \"prefetch_failed\": " << s.prefetch_failed << "\n";
+        oss << "  \"prefetch_failed\": " << s.prefetch_failed << ",\n";
+        oss << "  \"avg_migration_time_ms\": " << std::fixed << std::setprecision(2) << s.avg_migration_time_ms << ",\n";
+        oss << "  \"total_bytes_migrated_mb\": " << std::fixed << std::setprecision(1) << (s.total_bytes_migrated / (1024.0 * 1024.0)) << ",\n";
+        oss << "  \"migration_bandwidth_mbps\": " << std::fixed << std::setprecision(1) << s.migration_bandwidth_mbps << ",\n";
+        oss << "  \"gpu_memory_watermark_mb\": " << std::fixed << std::setprecision(1) << (s.gpu_memory_watermark / (1024.0 * 1024.0)) << ",\n";
+        oss << "  \"cpu_memory_watermark_mb\": " << std::fixed << std::setprecision(1) << (s.cpu_memory_watermark / (1024.0 * 1024.0)) << "\n";
         oss << "}";
     } else {
         // Compact single-line JSON

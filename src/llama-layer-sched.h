@@ -3,18 +3,22 @@
 #include "llama-mem-telemetry.h"
 #include "llama-metrics.h"
 #include "ggml-backend.h"
+#include "ggml-alloc.h"
 
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <deque>
 #include <mutex>
+#include <set>
+#include <thread>
 #include <unordered_map>
 #include <vector>
 
 struct llama_model;
 struct llama_layer;
 struct ggml_tensor;
+struct ggml_context;
 
 // Layer location for dynamic scheduling
 enum llama_layer_location {
@@ -31,6 +35,9 @@ struct llama_layer_state {
     size_t                   size_bytes   = 0;        // Total size of layer tensors
     int64_t                  last_access_us = 0;      // Last access timestamp
     bool                     is_migrating = false;    // Currently being migrated
+
+    // Buffer for migrated tensors (owned by scheduler when migrated)
+    ggml_backend_buffer_t    migration_buffer = nullptr;
 };
 
 // Dynamic layer scheduler for memory-aware layer placement
@@ -38,11 +45,15 @@ struct llama_layer_state {
 class llama_layer_scheduler {
 public:
     struct config {
-        float   pressure_threshold = 0.85f;   // Memory pressure threshold
-        float   critical_threshold = 0.95f;   // Critical memory threshold
-        int32_t min_gpu_layers     = 0;       // Minimum layers to keep on GPU
-        size_t  migration_batch    = 1;       // Number of layers to migrate at once
-        bool    prefetch_enabled   = true;    // Enable prefetch hints
+        float   pressure_threshold    = 0.85f;   // Memory pressure threshold (start evicting)
+        float   pressure_low_thresh   = 0.70f;   // Hysteresis low threshold (stop evicting)
+        float   critical_threshold    = 0.95f;   // Critical memory threshold
+        int32_t min_gpu_layers        = 0;       // Minimum layers to keep on GPU
+        size_t  migration_batch       = 4;       // Number of layers to migrate at once (batch migration)
+        bool    prefetch_enabled      = true;    // Enable prefetch hints
+        bool    use_pinned_memory     = true;    // Use pinned memory for faster transfers
+        bool    graceful_degradation  = true;    // Continue on CPU if GPU migration fails
+        std::vector<int32_t> pinned_layers;      // Layers to always keep on GPU (never evict)
     };
 
     llama_layer_scheduler(
@@ -50,7 +61,7 @@ public:
         llama_mem_telemetry & telemetry,
         const config & cfg);
 
-    ~llama_layer_scheduler() = default;
+    ~llama_layer_scheduler();
 
     // Prepare a layer for computation
     // Returns the device where the layer should run
@@ -97,8 +108,32 @@ public:
     int64_t get_migrations_to_gpu() const { return migrations_to_gpu_; }
     int64_t get_migrations_to_cpu() const { return migrations_to_cpu_; }
 
+    // Get migration timing metrics
+    double get_avg_migration_time_ms() const;
+    size_t get_total_bytes_migrated() const { return total_bytes_migrated_; }
+
+    // Get memory watermarks
+    size_t get_gpu_memory_watermark() const { return gpu_memory_watermark_; }
+    size_t get_cpu_memory_watermark() const { return cpu_memory_watermark_; }
+
+    // Check if layer is pinned (never evicted)
+    bool is_layer_pinned(int32_t il) const;
+
     // Set metrics logger for structured logging
     void set_metrics_logger(llama_metrics_logger * logger) { metrics_logger_ = logger; }
+
+    // Backend synchronization
+    void synchronize_device(ggml_backend_dev_t dev);
+    void synchronize_all_devices();
+
+    // Wait for a layer's migration to complete
+    // Returns true if migration completed, false on timeout
+    bool wait_for_migration(int32_t il, int64_t timeout_us = 0);
+
+    // Async migration support
+    bool request_async_migration(int32_t il, llama_layer_location target);
+    size_t process_pending_migrations(size_t max_count = 1);
+    size_t get_pending_migration_count() const;
 
 private:
     // Internal migration functions
@@ -116,6 +151,31 @@ private:
 
     // Get current time in microseconds
     static int64_t get_time_us();
+
+    // Tensor migration helpers
+    // Get list of all tensors in a layer
+    std::vector<ggml_tensor *> get_layer_tensors(int32_t il);
+
+    // Copy a single tensor to a new buffer on target device
+    bool copy_tensor_to_buffer(ggml_tensor * tensor, ggml_backend_buffer_t dst_buffer, size_t & offset);
+
+    // Free migration buffer for a layer
+    void free_migration_buffer(int32_t il);
+
+    // Batch migration helpers
+    bool migrate_batch_to_gpu(const std::vector<int32_t> & layers);
+    bool migrate_batch_to_cpu(const std::vector<int32_t> & layers);
+
+    // Pinned memory management
+    void * alloc_pinned_memory(size_t size);
+    void free_pinned_memory(void * ptr);
+
+    // Check hysteresis state
+    bool should_evict(float current_pressure) const;
+    bool should_prefetch(float current_pressure) const;
+
+    // Update memory watermarks
+    void update_watermarks();
 
     llama_model & model_;
     llama_mem_telemetry & telemetry_;
@@ -139,6 +199,24 @@ private:
     // Statistics
     int64_t migrations_to_gpu_ = 0;
     int64_t migrations_to_cpu_ = 0;
+
+    // Migration timing metrics
+    int64_t total_migration_time_us_ = 0;
+    int64_t migration_count_ = 0;
+    size_t total_bytes_migrated_ = 0;
+
+    // Memory watermarks (high-water marks)
+    size_t gpu_memory_watermark_ = 0;
+    size_t cpu_memory_watermark_ = 0;
+
+    // Hysteresis state
+    bool in_pressure_mode_ = false;  // true when actively evicting
+
+    // Pinned memory pool (for reuse)
+    std::vector<std::pair<void *, size_t>> pinned_buffers_;
+
+    // Pending async migrations queue
+    std::deque<std::pair<int32_t, llama_layer_location>> pending_migrations_;
 
     // Metrics logger (optional)
     llama_metrics_logger * metrics_logger_ = nullptr;

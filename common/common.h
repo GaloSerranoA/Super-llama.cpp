@@ -442,8 +442,14 @@ struct common_params {
     bool        async_prefetch     = false; // enable async layer/KV prefetching
     bool        metrics_logging    = false; // enable structured JSON metrics logging
     float       mem_pressure_thresh = 0.85f; // memory pressure threshold for dynamic layers
+    float       mem_pressure_low   = 0.70f; // memory pressure low threshold (hysteresis)
     uint32_t    kv_page_size       = 256;   // KV cache page size in tokens
     std::string metrics_file;               // metrics output file path (empty = stderr)
+    std::vector<int32_t> pinned_layers;     // layers to always keep on GPU (never evict)
+    bool        use_pinned_memory  = true;  // use pinned memory for faster GPU transfers
+    bool        graceful_degrade   = true;  // continue on CPU if GPU migration fails
+    bool        coalesce_kv_pages  = true;  // coalesce adjacent KV pages
+    bool        verbose_migration  = false; // verbose logging for migration operations
 
     bool input_prefix_bos  = false; // prefix BOS to user inputs, preceding input_prefix
     bool use_mmap          = true;  // enable mmap to use filesystem cache

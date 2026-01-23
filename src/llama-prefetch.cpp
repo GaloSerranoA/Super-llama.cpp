@@ -244,17 +244,34 @@ bool llama_prefetcher::process_request(llama_prefetch_request & req) {
                 return false;
             }
 
-            // Hint to layer scheduler to prepare the layer
-            layer_sched_->hint_prefetch(req.layer_id);
+            // Check if layer is already on GPU
+            if (layer_sched_->is_on_gpu(req.layer_id)) {
+                return true;
+            }
 
-            // For now, the actual prefetch is handled by prepare_layer()
-            // This is a placeholder for future async implementation
-            return true;
+            // Request async migration to GPU
+            if (!layer_sched_->request_async_migration(req.layer_id, LLAMA_LAYER_LOC_GPU)) {
+                // Async migration not supported or already in progress, fall back to hint
+                layer_sched_->hint_prefetch(req.layer_id);
+                return true;
+            }
+
+            // Process the migration (blocking in this thread)
+            layer_sched_->process_pending_migrations(1);
+
+            // Wait for migration to complete with timeout
+            return layer_sched_->wait_for_migration(req.layer_id, 5000000);  // 5 second timeout
         }
 
         case LLAMA_PREFETCH_KV_PAGE: {
             if (!kv_cache_) {
                 return false;
+            }
+
+            // Use async prefetch queue if available, otherwise direct prefetch
+            if (kv_cache_->get_pending_prefetch_count() > 0) {
+                // Process any pending prefetches first
+                kv_cache_->process_pending_prefetches(1);
             }
 
             // Prefetch the KV page to GPU
