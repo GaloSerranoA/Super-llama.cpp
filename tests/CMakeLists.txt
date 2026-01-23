@@ -266,3 +266,13 @@ add_executable(test-enterprise test-enterprise.cpp)
 install(TARGETS test-enterprise RUNTIME)
 add_test(NAME test-enterprise COMMAND test-enterprise)
 set_property(TEST test-enterprise PROPERTY LABELS "enterprise")
+
+# Enterprise integration tests (requires model file)
+llama_build(test-integration.cpp)
+# Note: test-integration requires --model argument, run manually:
+# ./test-integration --model path/to/model.gguf
+
+# Enterprise load tests (requires model file)
+llama_build(test-load.cpp)
+# Note: test-load requires --model argument, run manually:
+# ./test-load --model path/to/model.gguf --clients 4 --requests 10

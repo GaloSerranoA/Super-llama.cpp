@@ -152,8 +152,8 @@
 
 <br/>
 
-> [!NOTE]
-> 💡 Memory efficiency features are **disabled by default** to preserve original llama.cpp behavior. Enterprise features are opt-in.
+> [!TIP]
+> 💡 Memory efficiency features are **enabled by default** in Super-llama.cpp. Use `--no-dynamic-layers`, `--no-paged-kv`, `--no-async-prefetch` to disable them. For vanilla llama.cpp behavior, use the original [llama.cpp](https://github.com/ggerganov/llama.cpp).
 
 <br/>
 
@@ -195,7 +195,7 @@
 <summary><b>⌨️ CLI Flags</b></summary>
 
 ```bash
---dynamic-layers              # Enable dynamic layer scheduling
+# Dynamic layers enabled by default, use --no-dynamic-layers to disable
 --pin-layers 0,1,31           # Pin specific layers to GPU
 --mem-pressure 0.85           # Set high threshold (start evicting)
 --mem-pressure-low 0.70       # Set low threshold (stop evicting)
@@ -236,7 +236,7 @@
 <summary><b>⌨️ CLI Flags</b></summary>
 
 ```bash
---paged-kv                    # Enable paged KV cache
+# Paged KV enabled by default, use --no-paged-kv to disable
 --kv-page-size 256            # Set page size (16-8192 tokens)
 --no-coalesce-pages           # Disable automatic page coalescing
 ```
@@ -883,9 +883,9 @@ recovery.execute_with_recovery([&]() {
 
 | Argument | Description | Default |
 |:---------|:------------|:--------|
-| `--dynamic-layers` | Enable dynamic layer scheduling | disabled |
-| `--paged-kv` | Enable paged KV cache | disabled |
-| `--async-prefetch` | Enable async prefetching | disabled |
+| `--no-dynamic-layers` | Disable dynamic layer scheduling | **enabled** |
+| `--no-paged-kv` | Disable paged KV cache | **enabled** |
+| `--no-async-prefetch` | Disable async prefetching | **enabled** |
 
 </details>
 
@@ -1148,9 +1148,9 @@ int main() {
 | Area | Status | Notes |
 |:-----|:------:|:------|
 | Unit Tests | ![Passing](https://img.shields.io/badge/24%2F24_Passing-00C851?style=flat-square) | Enterprise features fully tested |
-| Integration Tests | ![Partial](https://img.shields.io/badge/Partial-FFB300?style=flat-square) | Core paths covered |
-| Benchmarks | ![Pending](https://img.shields.io/badge/Pending-9E9E9E?style=flat-square) | Performance profiling in progress |
-| Load Testing | ![Pending](https://img.shields.io/badge/Pending-9E9E9E?style=flat-square) | Production stress testing needed |
+| Integration Tests | ![Ready](https://img.shields.io/badge/Ready-00C851?style=flat-square) | Framework complete, requires model |
+| Benchmarks | ![Ready](https://img.shields.io/badge/Ready-00C851?style=flat-square) | Python script ready |
+| Load Testing | ![Ready](https://img.shields.io/badge/Ready-00C851?style=flat-square) | Multi-client stress test ready |
 
 <details>
 <summary><b>📊 Unit Test Results (Click to expand)</b></summary>
@@ -1173,12 +1173,50 @@ int main() {
 | Tensor Parallelism | 2 | ✅ All Pass |
 | **Total** | **24** | **✅ 100% Pass** |
 
-Run tests with: `build/bin/Release/test-enterprise.exe`
+**Run tests:**
+```bash
+# Unit tests (no model required)
+build/bin/Release/test-enterprise.exe
+
+# Integration tests (requires GGUF model)
+build/bin/Release/test-integration --model path/to/model.gguf
+
+# Load tests (requires GGUF model)
+build/bin/Release/test-load --model path/to/model.gguf --clients 4 --requests 10
+
+# Benchmarks (Python, requires model)
+python scripts/benchmark-enterprise.py --model path/to/model.gguf
+```
+
+</details>
+
+<details>
+<summary><b>🔧 Test Framework Details (Click to expand)</b></summary>
+
+| Test File | Purpose | Requirements |
+|:----------|:--------|:-------------|
+| `tests/test-enterprise.cpp` | Unit tests with mocks | None (standalone) |
+| `tests/test-integration.cpp` | End-to-end inference tests | GGUF model file |
+| `tests/test-load.cpp` | Multi-client stress testing | GGUF model file |
+| `scripts/benchmark-enterprise.py` | Performance profiling | GGUF model, Python 3.8+ |
+
+**Integration Tests cover:**
+- Model loading performance
+- Context creation with enterprise features
+- Basic inference and generation
+- KV cache state save/load
+- Memory pressure handling
+
+**Load Tests include:**
+- Concurrent client simulation
+- Variable request sizes
+- Rate limiting verification
+- SLA compliance tracking (P50/P95/P99)
 
 </details>
 
 > [!NOTE]
-> **Test Coverage:** Unit tests use mock implementations to verify logic without requiring GPU hardware. Integration with actual CUDA/GPU requires hardware testing.
+> **Test Coverage:** Unit tests use mock implementations to verify logic without requiring GPU hardware. Integration, benchmark, and load tests require a GGUF model file and optionally GPU hardware.
 
 <br/>
 

@@ -1296,28 +1296,28 @@ common_params_context common_params_parser_init(common_params & params, llama_ex
             params.kv_unified = true;
         }
     ).set_env("LLAMA_ARG_KV_UNIFIED").set_examples({LLAMA_EXAMPLE_SERVER, LLAMA_EXAMPLE_PERPLEXITY, LLAMA_EXAMPLE_BATCHED}));
-    // AirLLM-style memory efficiency features (experimental)
+    // AirLLM-style memory efficiency features (enabled by default in Super-llama.cpp)
     add_opt(common_arg(
-        {"--dynamic-layers"},
-        "enable dynamic layer scheduling based on memory pressure (experimental)",
+        {"--no-dynamic-layers"},
+        "disable dynamic layer scheduling (enabled by default)",
         [](common_params & params) {
-            params.dynamic_layers = true;
+            params.dynamic_layers = false;
         }
-    ).set_env("LLAMA_ARG_DYNAMIC_LAYERS"));
+    ).set_env("LLAMA_ARG_NO_DYNAMIC_LAYERS"));
     add_opt(common_arg(
-        {"--paged-kv"},
-        "enable paged KV cache with GPU/CPU spilling (experimental)",
+        {"--no-paged-kv"},
+        "disable paged KV cache (enabled by default)",
         [](common_params & params) {
-            params.paged_kv = true;
+            params.paged_kv = false;
         }
-    ).set_env("LLAMA_ARG_PAGED_KV"));
+    ).set_env("LLAMA_ARG_NO_PAGED_KV"));
     add_opt(common_arg(
-        {"--async-prefetch"},
-        "enable async layer/KV prefetching (experimental)",
+        {"--no-async-prefetch"},
+        "disable async layer/KV prefetching (enabled by default)",
         [](common_params & params) {
-            params.async_prefetch = true;
+            params.async_prefetch = false;
         }
-    ).set_env("LLAMA_ARG_ASYNC_PREFETCH"));
+    ).set_env("LLAMA_ARG_NO_ASYNC_PREFETCH"));
     add_opt(common_arg(
         {"--mem-pressure"}, "FLOAT",
         string_format("memory pressure threshold for dynamic layers (0.0-1.0, default: %.2f)", params.mem_pressure_thresh),

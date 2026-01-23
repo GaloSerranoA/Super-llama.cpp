@@ -436,10 +436,10 @@ struct common_params {
     bool swa_full          = false; // use full-size SWA cache (https://github.com/ggml-org/llama.cpp/pull/13194#issuecomment-2868343055)
     bool kv_unified        = false; // enable unified KV cache
 
-    // AirLLM-style memory efficiency features (experimental)
-    bool        dynamic_layers     = false; // enable dynamic layer scheduling
-    bool        paged_kv           = false; // enable paged KV cache
-    bool        async_prefetch     = false; // enable async layer/KV prefetching
+    // AirLLM-style memory efficiency features (enabled by default in Super-llama.cpp)
+    bool        dynamic_layers     = true;  // enable dynamic layer scheduling
+    bool        paged_kv           = true;  // enable paged KV cache
+    bool        async_prefetch     = true;  // enable async layer/KV prefetching
     bool        metrics_logging    = false; // enable structured JSON metrics logging
     float       mem_pressure_thresh = 0.85f; // memory pressure threshold for dynamic layers
     float       mem_pressure_low   = 0.70f; // memory pressure low threshold (hysteresis)
