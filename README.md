@@ -1107,7 +1107,7 @@ int main() {
 | Hysteresis Control | ![API Ready](https://img.shields.io/badge/API-Ready-00C851?style=flat-square) | Dual-threshold eviction |
 | Batch Migration | ![API Ready](https://img.shields.io/badge/API-Ready-00C851?style=flat-square) | Migrate multiple layers at once |
 | Layer Pinning | ![API Ready](https://img.shields.io/badge/API-Ready-00C851?style=flat-square) | Keep critical layers on GPU |
-| Page Coalescing | ![Needs Testing](https://img.shields.io/badge/Needs-Testing-4D96FF?style=flat-square) | Merge adjacent KV pages |
+| Page Coalescing | ![API Ready](https://img.shields.io/badge/API-Ready-00C851?style=flat-square) | Full data + metadata merge |
 | Graceful Degradation | ![API Ready](https://img.shields.io/badge/API-Ready-00C851?style=flat-square) | CPU fallback on GPU exhaustion |
 
 ### 🏢 Enterprise Infrastructure
@@ -1115,7 +1115,7 @@ int main() {
 | Component | Status | Details |
 |:----------|:------:|:--------|
 | Multi-GPU Manager | ![API Ready](https://img.shields.io/badge/API-Ready-00C851?style=flat-square) | Layer distribution strategies |
-| Tensor Parallelism | ![Placeholder](https://img.shields.io/badge/Placeholder-FFD700?style=flat-square) | API defined, impl is basic |
+| Tensor Parallelism | ![Needs Testing](https://img.shields.io/badge/Needs-Testing-4D96FF?style=flat-square) | Memory split logic, needs NCCL |
 | CUDA Streams Pipeline | ![Needs Testing](https://img.shields.io/badge/Needs-Testing-4D96FF?style=flat-square) | Stream management impl |
 | Prometheus Exporter | ![API Ready](https://img.shields.io/badge/API-Ready-00C851?style=flat-square) | Metric formatting ready |
 | Distributed Tracing | ![API Ready](https://img.shields.io/badge/API-Ready-00C851?style=flat-square) | Span tracking impl |
@@ -1319,9 +1319,17 @@ Same as llama.cpp - **MIT License**
 
 ## 🙏 Acknowledgments
 
+### 👤 Contributors
+
 <p align="center">
   <img src="https://img.shields.io/badge/Author-GALO_SERRANO_ABAD-00C851?style=for-the-badge&logo=github"/>
 </p>
+
+| Contributor | Role |
+|:------------|:-----|
+| **GALO SERRANO ABAD** | Enterprise features, Multi-GPU, Dynamic Layer Scheduler, Paged KV Cache |
+
+### 🏗️ Built Upon
 
 <p align="center">
   <a href="https://github.com/ggerganov/llama.cpp"><img src="https://img.shields.io/badge/llama.cpp-by_Georgi_Gerganov-FF6B6B?style=for-the-badge&logo=github"/></a>

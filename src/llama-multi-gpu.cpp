@@ -282,24 +282,71 @@ std::vector<llama_layer_assignment> llama_multi_gpu_manager::distribute_tensor_p
     int n_gpus = static_cast<int>(gpus_.size());
     int tp_size = std::min(cfg_.tensor_parallel_size, n_gpus);
 
+    if (tp_size < 2) {
+        // Fall back to memory-balanced distribution if TP not possible
+        LLAMA_LOG_WARN("%s: tensor parallelism requires 2+ GPUs, falling back to memory-balanced\n",
+            __func__);
+        return distribute_memory_balanced(n_layers, layer_sizes);
+    }
+
+    // Validate all GPUs have sufficient memory for split tensors
+    size_t min_gpu_mem = SIZE_MAX;
+    for (int g = 0; g < tp_size; ++g) {
+        if (g < static_cast<int>(gpus_.size())) {
+            min_gpu_mem = (std::min)(min_gpu_mem, gpus_[g].total_memory);
+        }
+    }
+
+    // Calculate memory per GPU for tensor parallel (each GPU holds 1/tp_size of each layer)
+    size_t total_layer_mem = 0;
+    for (const auto & sz : layer_sizes) {
+        total_layer_mem += sz;
+    }
+    size_t mem_per_gpu = total_layer_mem / tp_size;
+
+    LLAMA_LOG_INFO("%s: tensor parallel config: TP=%d, total=%.1f MB, per GPU=%.1f MB\n",
+        __func__, tp_size, total_layer_mem / (1024.0 * 1024.0), mem_per_gpu / (1024.0 * 1024.0));
+
+    // Create assignments - all layers are split across all TP GPUs
     for (int i = 0; i < n_layers; ++i) {
         llama_layer_assignment a;
         a.layer_id = i;
-        a.gpu_id = 0;  // Primary GPU
+        a.gpu_id = 0;  // Primary GPU coordinates
         a.memory_required = (i < static_cast<int>(layer_sizes.size())) ? layer_sizes[i] : 0;
-        a.is_split = (tp_size > 1);
+        a.is_split = true;
 
-        if (a.is_split) {
-            for (int g = 0; g < tp_size; ++g) {
-                a.split_gpu_ids.push_back(g);
+        // Split memory requirement across GPUs
+        size_t split_mem = a.memory_required / tp_size;
+
+        // Each GPU in the TP group gets a slice of the tensor
+        for (int g = 0; g < tp_size; ++g) {
+            a.split_gpu_ids.push_back(g);
+
+            // Track memory allocation per GPU
+            if (g < static_cast<int>(gpus_.size())) {
+                gpus_[g].allocated_bytes += split_mem;
             }
         }
 
         assignments.push_back(a);
     }
 
+    // Log per-GPU allocation
+    for (int g = 0; g < tp_size; ++g) {
+        if (g < static_cast<int>(gpus_.size())) {
+            double alloc_mb = gpus_[g].allocated_bytes.load() / (1024.0 * 1024.0);
+            double total_mb = gpus_[g].total_memory / (1024.0 * 1024.0);
+            double util = (gpus_[g].total_memory > 0) ?
+                (100.0 * gpus_[g].allocated_bytes.load() / gpus_[g].total_memory) : 0.0;
+            LLAMA_LOG_INFO("%s:   GPU %d: %.1f / %.1f MB (%.1f%%) - TP rank %d/%d\n",
+                __func__, g, alloc_mb, total_mb, util, g, tp_size);
+        }
+    }
+
     LLAMA_LOG_INFO("%s: distributed %d layers with tensor parallelism (TP=%d)\n",
         __func__, n_layers, tp_size);
+    LLAMA_LOG_INFO("%s: NOTE - actual tensor split/gather requires NCCL or manual sync\n",
+        __func__);
 
     return assignments;
 }

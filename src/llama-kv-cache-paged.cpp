@@ -674,20 +674,64 @@ uint32_t llama_kv_cache_paged::coalesce_pages(int32_t il) {
 
         size_t run_length = run_end - run_start;
         if (run_length >= cfg_.coalesce_threshold) {
-            // Coalesce these pages by keeping the first and removing others
-            // Note: This is metadata-only coalescing for now
-            // Full data coalescing would require buffer reallocation
-
+            // Coalesce these pages - merge both metadata AND data buffers
             llama_kv_page * first = layer_pages[run_start];
             uint32_t total_tokens = 0;
             size_t total_bytes = 0;
 
+            // Calculate total size needed
             for (size_t i = run_start; i < run_end; ++i) {
                 total_tokens += layer_pages[i]->n_tokens;
                 total_bytes += layer_pages[i]->size_bytes;
             }
 
-            // Update first page to span the entire range
+            // Perform actual data coalescing if buffers exist
+            bool data_coalesced = false;
+            if (first->buffer != nullptr && total_bytes > 0) {
+                // Allocate a new merged buffer using the same buffer type as the first page
+                ggml_backend_buffer_t merged_buffer = nullptr;
+                ggml_backend_buffer_type_t buft = nullptr;
+
+                if (first->location == LLAMA_KV_PAGE_GPU) {
+                    // Get buffer type from the existing GPU buffer
+                    buft = ggml_backend_buffer_get_type(first->buffer);
+                } else {
+                    // Use CPU buffer type
+                    buft = ggml_backend_cpu_buffer_type();
+                }
+
+                if (buft != nullptr) {
+                    merged_buffer = ggml_backend_buft_alloc_buffer(buft, total_bytes);
+                }
+
+                if (merged_buffer != nullptr) {
+                    // Copy data from all pages into the merged buffer
+                    size_t offset = 0;
+                    void * merged_data = ggml_backend_buffer_get_base(merged_buffer);
+
+                    for (size_t i = run_start; i < run_end; ++i) {
+                        llama_kv_page * page = layer_pages[i];
+                        if (page->buffer != nullptr && page->size_bytes > 0) {
+                            void * page_data = ggml_backend_buffer_get_base(page->buffer);
+                            if (merged_data != nullptr && page_data != nullptr) {
+                                memcpy(static_cast<char*>(merged_data) + offset,
+                                       page_data, page->size_bytes);
+                            }
+                            offset += page->size_bytes;
+                        }
+                    }
+
+                    // Free old buffer and assign new one
+                    ggml_backend_buffer_free(first->buffer);
+                    first->buffer = merged_buffer;
+                    data_coalesced = true;
+
+                    LLAMA_LOG_DEBUG("%s: merged %zu bytes of KV data for layer %d\n",
+                        __func__, total_bytes, il);
+                }
+            }
+
+            // Update first page metadata to span the entire range
             first->n_tokens = total_tokens;
             first->size_bytes = total_bytes;
 
@@ -698,8 +742,9 @@ uint32_t llama_kv_cache_paged::coalesce_pages(int32_t il) {
 
             coalesced += static_cast<uint32_t>(run_length - 1);
 
-            LLAMA_LOG_DEBUG("%s: coalesced %zu pages at layer %d pos %u-%u\n",
-                __func__, run_length, il, first->pos_start, first->pos_start + total_tokens);
+            LLAMA_LOG_DEBUG("%s: coalesced %zu pages at layer %d pos %u-%u (data: %s)\n",
+                __func__, run_length, il, first->pos_start, first->pos_start + total_tokens,
+                data_coalesced ? "merged" : "metadata-only");
         }
 
         run_start = run_end;
@@ -720,7 +765,7 @@ uint32_t llama_kv_cache_paged::coalesce_pages(int32_t il) {
                 }
             }
 
-            // Free buffer if any
+            // Free buffer if any (data already copied to merged buffer)
             if (it->second->buffer != nullptr) {
                 ggml_backend_buffer_free(it->second->buffer);
             }
