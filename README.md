@@ -31,7 +31,7 @@
 <tr>
 <td>
 
-**Super-llama.cpp Enterprise** is a production-ready fork of [llama.cpp](https://github.com/ggerganov/llama.cpp) that combines AirLLM-style memory efficiency with enterprise features for scalable deployment.
+**Super-llama.cpp Enterprise** is an **experimental fork** of [llama.cpp](https://github.com/ggerganov/llama.cpp) that adds enterprise-oriented features inspired by AirLLM-style memory efficiency concepts.
 
 </td>
 </tr>
@@ -40,6 +40,11 @@
 <p align="center">
   <img src="https://img.shields.io/badge/Author-GALO_SERRANO_ABAD-FF6B6B?style=for-the-badge&logo=github"/>
 </p>
+
+> [!NOTE]
+> **What's New vs. Forked:**
+> - **Inherited from llama.cpp:** Core inference engine, model loading, quantization, GGML backend (~7,800+ commits)
+> - **New in this fork:** Enterprise features in `src/llama-*.cpp` files (Multi-GPU, Prometheus, Rate Limiting, RBAC, etc.) - approximately 8,000 lines of new code across 10 new source files
 
 <br/>
 
@@ -66,7 +71,7 @@
 | Feature | Description |
 |:--------|:------------|
 | 📊 **Memory Telemetry** | Real-time VRAM/RAM monitoring |
-| 📌 **Pinned Memory Transfers** | 2-3x faster CPU↔GPU movement |
+| 📌 **Pinned Memory Transfers** | Page-locked memory for CPU↔GPU (perf TBD) |
 | 📦 **Batch Layer Migration** | Grouped migrations for efficiency |
 
 </td>
@@ -179,7 +184,7 @@
 - ✅ LRU-based layer eviction when GPU memory is under pressure
 - ✅ Full tensor migration using `ggml_backend_tensor_get/set`
 - ✅ **Batch migration** - Migrate multiple layers at once
-- ✅ **Pinned memory** - Page-locked memory for 2-3x faster transfers
+- ✅ **Pinned memory** - Page-locked memory (VirtualLock/mlock) - performance gains TBD
 - ✅ **Hysteresis control** - Dual thresholds prevent thrashing
 - ✅ **Layer pinning** - Keep critical layers always on GPU
 - ✅ **Graceful degradation** - Continue on CPU when GPU fails
@@ -1084,53 +1089,71 @@ int main() {
 
 ## ✅ Implementation Status
 
+> [!IMPORTANT]
+> **Status Legend:**
+> - 🟢 **API Ready** - Code compiles, API implemented, needs production testing
+> - 🟡 **Placeholder** - Interface exists, implementation is stubbed or minimal
+> - 🔵 **Needs Testing** - Implemented but untested in production scenarios
+
 ### 🧠 Core Memory Efficiency
 
 | Component | Status | Details |
 |:----------|:------:|:--------|
-| Memory Telemetry | ![Complete](https://img.shields.io/badge/✓-Complete-00C851?style=flat-square) | Full cross-platform support |
-| Dynamic Layer Scheduler | ![Complete](https://img.shields.io/badge/✓-Complete-00C851?style=flat-square) | Full tensor migration via ggml backend APIs |
-| Paged KV Cache | ![Complete](https://img.shields.io/badge/✓-Complete-00C851?style=flat-square) | Full K/V page data movement |
-| Async Prefetcher | ![Complete](https://img.shields.io/badge/✓-Complete-00C851?style=flat-square) | Worker thread implementation |
-| Pinned Memory | ![Complete](https://img.shields.io/badge/✓-Complete-00C851?style=flat-square) | VirtualLock/mlock for faster transfers |
-| Hysteresis Control | ![Complete](https://img.shields.io/badge/✓-Complete-00C851?style=flat-square) | Dual-threshold eviction |
-| Batch Migration | ![Complete](https://img.shields.io/badge/✓-Complete-00C851?style=flat-square) | Migrate multiple layers at once |
-| Layer Pinning | ![Complete](https://img.shields.io/badge/✓-Complete-00C851?style=flat-square) | Keep critical layers on GPU |
-| Page Coalescing | ![Complete](https://img.shields.io/badge/✓-Complete-00C851?style=flat-square) | Merge adjacent KV pages |
-| Graceful Degradation | ![Complete](https://img.shields.io/badge/✓-Complete-00C851?style=flat-square) | CPU fallback on GPU exhaustion |
+| Memory Telemetry | ![API Ready](https://img.shields.io/badge/API-Ready-00C851?style=flat-square) | Cross-platform memory queries |
+| Dynamic Layer Scheduler | ![API Ready](https://img.shields.io/badge/API-Ready-00C851?style=flat-square) | Tensor migration via ggml backend APIs |
+| Paged KV Cache | ![API Ready](https://img.shields.io/badge/API-Ready-00C851?style=flat-square) | Page management and eviction logic |
+| Async Prefetcher | ![API Ready](https://img.shields.io/badge/API-Ready-00C851?style=flat-square) | Worker thread implementation |
+| Pinned Memory | ![Needs Testing](https://img.shields.io/badge/Needs-Testing-4D96FF?style=flat-square) | VirtualLock/mlock - perf unverified |
+| Hysteresis Control | ![API Ready](https://img.shields.io/badge/API-Ready-00C851?style=flat-square) | Dual-threshold eviction |
+| Batch Migration | ![API Ready](https://img.shields.io/badge/API-Ready-00C851?style=flat-square) | Migrate multiple layers at once |
+| Layer Pinning | ![API Ready](https://img.shields.io/badge/API-Ready-00C851?style=flat-square) | Keep critical layers on GPU |
+| Page Coalescing | ![Needs Testing](https://img.shields.io/badge/Needs-Testing-4D96FF?style=flat-square) | Merge adjacent KV pages |
+| Graceful Degradation | ![API Ready](https://img.shields.io/badge/API-Ready-00C851?style=flat-square) | CPU fallback on GPU exhaustion |
 
 ### 🏢 Enterprise Infrastructure
 
 | Component | Status | Details |
 |:----------|:------:|:--------|
-| Multi-GPU Manager | ![Complete](https://img.shields.io/badge/✓-Complete-00C851?style=flat-square) | Layer distribution across GPUs |
-| Tensor Parallelism | ![Complete](https://img.shields.io/badge/✓-Complete-00C851?style=flat-square) | Layer splitting across GPUs |
-| CUDA Streams Pipeline | ![Complete](https://img.shields.io/badge/✓-Complete-00C851?style=flat-square) | Overlapped compute/transfer |
-| Prometheus Exporter | ![Complete](https://img.shields.io/badge/✓-Complete-00C851?style=flat-square) | Full metrics support |
-| Distributed Tracing | ![Complete](https://img.shields.io/badge/✓-Complete-00C851?style=flat-square) | OpenTelemetry compatible |
+| Multi-GPU Manager | ![API Ready](https://img.shields.io/badge/API-Ready-00C851?style=flat-square) | Layer distribution strategies |
+| Tensor Parallelism | ![Placeholder](https://img.shields.io/badge/Placeholder-FFD700?style=flat-square) | API defined, impl is basic |
+| CUDA Streams Pipeline | ![Needs Testing](https://img.shields.io/badge/Needs-Testing-4D96FF?style=flat-square) | Stream management impl |
+| Prometheus Exporter | ![API Ready](https://img.shields.io/badge/API-Ready-00C851?style=flat-square) | Metric formatting ready |
+| Distributed Tracing | ![API Ready](https://img.shields.io/badge/API-Ready-00C851?style=flat-square) | Span tracking impl |
 
 ### 🎯 Enterprise Operations
 
 | Component | Status | Details |
 |:----------|:------:|:--------|
-| Request Queue | ![Complete](https://img.shields.io/badge/✓-Complete-00C851?style=flat-square) | Priority scheduling |
-| Rate Limiter | ![Complete](https://img.shields.io/badge/✓-Complete-00C851?style=flat-square) | Per-client limits |
-| Health Monitor | ![Complete](https://img.shields.io/badge/✓-Complete-00C851?style=flat-square) | Liveness/readiness probes |
-| SLA Monitor | ![Complete](https://img.shields.io/badge/✓-Complete-00C851?style=flat-square) | Latency percentiles |
-| Cost Attribution | ![Complete](https://img.shields.io/badge/✓-Complete-00C851?style=flat-square) | Per-model/client tracking |
-| Audit Logging | ![Complete](https://img.shields.io/badge/✓-Complete-00C851?style=flat-square) | Async logging |
+| Request Queue | ![API Ready](https://img.shields.io/badge/API-Ready-00C851?style=flat-square) | Priority scheduling |
+| Rate Limiter | ![API Ready](https://img.shields.io/badge/API-Ready-00C851?style=flat-square) | Token bucket impl |
+| Health Monitor | ![API Ready](https://img.shields.io/badge/API-Ready-00C851?style=flat-square) | Liveness/readiness checks |
+| SLA Monitor | ![API Ready](https://img.shields.io/badge/API-Ready-00C851?style=flat-square) | Latency percentile tracking |
+| Cost Attribution | ![API Ready](https://img.shields.io/badge/API-Ready-00C851?style=flat-square) | Token counting per client |
+| Audit Logging | ![API Ready](https://img.shields.io/badge/API-Ready-00C851?style=flat-square) | Async file logging |
 
 ### 🔐 Enterprise Security
 
 | Component | Status | Details |
 |:----------|:------:|:--------|
-| Model Encryption | ![Complete](https://img.shields.io/badge/✓-Complete-00C851?style=flat-square) | AES-256-GCM (placeholder impl) |
-| RBAC | ![Complete](https://img.shields.io/badge/✓-Complete-00C851?style=flat-square) | Role-based access control |
-| Content Filtering | ![Complete](https://img.shields.io/badge/✓-Complete-00C851?style=flat-square) | Input/output filtering |
-| Checkpointing | ![Complete](https://img.shields.io/badge/✓-Complete-00C851?style=flat-square) | State persistence |
-| Recovery Manager | ![Complete](https://img.shields.io/badge/✓-Complete-00C851?style=flat-square) | Auto-recovery with retries |
-| TLS Support | ![Complete](https://img.shields.io/badge/✓-Complete-00C851?style=flat-square) | Certificate management |
-| API Key Management | ![Complete](https://img.shields.io/badge/✓-Complete-00C851?style=flat-square) | Key generation/validation |
+| Model Encryption | ![Placeholder](https://img.shields.io/badge/Placeholder-FFD700?style=flat-square) | XOR-based stub, NOT secure |
+| RBAC | ![API Ready](https://img.shields.io/badge/API-Ready-00C851?style=flat-square) | Role/permission management |
+| Content Filtering | ![API Ready](https://img.shields.io/badge/API-Ready-00C851?style=flat-square) | Regex-based filtering |
+| Checkpointing | ![Needs Testing](https://img.shields.io/badge/Needs-Testing-4D96FF?style=flat-square) | State serialization |
+| Recovery Manager | ![API Ready](https://img.shields.io/badge/API-Ready-00C851?style=flat-square) | Retry logic impl |
+| TLS Support | ![Placeholder](https://img.shields.io/badge/Placeholder-FFD700?style=flat-square) | Cert loading only |
+| API Key Management | ![API Ready](https://img.shields.io/badge/API-Ready-00C851?style=flat-square) | Key gen/validation |
+
+### 🧪 Testing Status
+
+| Area | Status | Notes |
+|:-----|:------:|:------|
+| Unit Tests | ![Missing](https://img.shields.io/badge/Missing-FF6B6B?style=flat-square) | Enterprise features need test coverage |
+| Integration Tests | ![Missing](https://img.shields.io/badge/Missing-FF6B6B?style=flat-square) | End-to-end testing required |
+| Benchmarks | ![Missing](https://img.shields.io/badge/Missing-FF6B6B?style=flat-square) | Performance claims unverified |
+| Load Testing | ![Missing](https://img.shields.io/badge/Missing-FF6B6B?style=flat-square) | Production stress testing needed |
+
+> [!WARNING]
+> **Production Readiness:** This is an experimental fork. Enterprise features compile and have working APIs, but have NOT been tested under production load. Use at your own risk and thoroughly test before deployment.
 
 <br/>
 
