@@ -1297,6 +1297,10 @@ Same as llama.cpp - **MIT License**
 ## 🙏 Acknowledgments
 
 <p align="center">
+  <img src="https://img.shields.io/badge/Author-GALO_SERRANO_ABAD-00C851?style=for-the-badge&logo=github"/>
+</p>
+
+<p align="center">
   <a href="https://github.com/ggerganov/llama.cpp"><img src="https://img.shields.io/badge/llama.cpp-by_Georgi_Gerganov-FF6B6B?style=for-the-badge&logo=github"/></a>
   <a href="https://github.com/lyogavin/airllm"><img src="https://img.shields.io/badge/AirLLM-Memory_Efficiency-845EC2?style=for-the-badge&logo=github"/></a>
   <a href="https://www.anthropic.com"><img src="https://img.shields.io/badge/Anthropic-Claude_AI-4D96FF?style=for-the-badge"/></a>
