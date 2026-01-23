@@ -260,3 +260,9 @@ target_link_libraries(${TEST_TARGET} PRIVATE llama)
 
 llama_build_and_test(test-alloc.cpp)
 target_include_directories(test-alloc PRIVATE ${PROJECT_SOURCE_DIR}/ggml/src)
+
+# Enterprise feature tests (standalone, no llama dependency)
+add_executable(test-enterprise test-enterprise.cpp)
+install(TARGETS test-enterprise RUNTIME)
+add_test(NAME test-enterprise COMMAND test-enterprise)
+set_property(TEST test-enterprise PROPERTY LABELS "enterprise")
