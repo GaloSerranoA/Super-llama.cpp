@@ -1420,3 +1420,10 @@ Same as llama.cpp - **MIT License**
   <img src="https://img.shields.io/badge/Made_with-❤️-FF6B6B?style=flat-square"/>
   <img src="https://img.shields.io/badge/Powered_by-🦙_llama.cpp-845EC2?style=flat-square"/>
 </p>
+
+## 💖 Support
+
+If you find this useful and want help please consider:
+
+[![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20A%20Coffee-FFDD00?style=for-the-badge&logo=buy-me-a-coffee&logoColor=black)](https://buymeacoffee.com/galoserranoa)
+[![PayPal](https://img.shields.io/badge/PayPal-00457C?style=for-the-badge&logo=paypal&logoColor=white)](https://www.paypal.biz/GALOSERRANOABAD)
